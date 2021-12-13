@@ -1,6 +1,6 @@
 <template>
   <button class="button-add" @click="isModalOpen = true">Добавить</button>
-  <VTable :data="companies" />
+  <v-table :data="companies" />
   <v-modal
     :isOpen="isModalOpen"
     v-show="isModalOpen"
@@ -15,6 +15,7 @@ import { ref } from "@vue/reactivity";
 import VTable from "./components/VTable.vue";
 import VModal from "./components/VModal.vue";
 import { provide } from "vue-demi";
+// eslint-disable-next-line no-unused-vars
 import { getByINN } from "./use/helpers.js";
 
 const remove = (arr, idx) => {
@@ -47,6 +48,10 @@ export default {
     };
 
     const createCompany = (data) => {
+      // Если уже такой ключ уже существует - не добавлять
+      let isOnce =
+        companies.value.filter((item) => item.id === data.id).length !== 1;
+      if (!isOnce) return;
       companies.value.push({ ...data, date: new Date(data.date) });
     };
 

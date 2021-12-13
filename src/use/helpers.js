@@ -12,12 +12,14 @@ export const dateNormalize = (date) => {
   return date.getFullYear() + "-" + fixMonth + "-" + date.getDate();
 };
 
-export const getByINN = (INN, func) => {
+const CACHE = [];
+
+export const getByINN = (INN, cb) => {
   let url =
-    "https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/party";
+  "https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/party";
   let token = "5a5e1d8d7ab18d3b42989fb686d9c977d1c9be2c";
   let query = INN;
-
+  
   let options = {
     method: "POST",
     mode: "cors",
@@ -29,20 +31,32 @@ export const getByINN = (INN, func) => {
     body: JSON.stringify({ query: query }),
   };
 
-  fetch(url, options)
-    .then((response) => response.json())
-    .then(({ suggestions }) => {
-      const company = suggestions[0];
-      const data = {
-        name: company.value,
-        INN: company.data.inn,
-        OGRN: company.data.ogrn,
-        address: company.data.address.value,
-        date: company.data.state.registration_date,
-        id: company.data.hid
-      };
+  let idx = -1;
+  CACHE.forEach((item, currentIdx) => {
+    idx = item.INN === INN ? currentIdx : -1;
+  });
 
-      func(data);
-    })
-    .catch((error) => console.log("error", error));
+  if(idx !== -1) {
+    cb(CACHE[idx]);
+    return;
+  }
+
+  fetch(url, options)
+  .then((response) => response.json())
+  .then(({ suggestions }) => {
+    const company = suggestions[0];
+    const data = {
+      name: company.value,
+      INN: company.data.inn,
+      OGRN: company.data.ogrn,
+      address: company.data.address.value,
+      date: company.data.state.registration_date,
+      id: company.data.hid
+    };
+
+
+    CACHE.push(data);
+    cb(data);
+  })
+  .catch((error) => console.log("error", error));
 };

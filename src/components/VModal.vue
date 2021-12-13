@@ -32,12 +32,20 @@
             type="text"
             id="companyOGRN"
             required
-            v-model="formModel.OGRN"
+            v-model.trim="formModel.OGRN"
             @blur="v$.OGRN.$touch"
             role="textbox"
           />
         </div>
-        <button @click.prevent="loadDataBy(formModel.INN)">Загрузить</button>
+        <button
+          @click.prevent="
+            v$.INN.$invalid
+              ? v$.INN.$touch()
+              : getByINN(formModel.INN, createCompany)
+          "
+        >
+          Загрузить
+        </button>
         <div class="modal-form__input">
           <label for="companyINN">Введите ИНН: </label>
           <input
@@ -45,7 +53,6 @@
             id="companyINN"
             required
             v-model="formModel.INN"
-            @blur="v$.INN.$touch"
             role="textbox"
           />
         </div>
@@ -70,13 +77,11 @@
       <button class="modal__close" @click="closeForm()">&times;</button>
       <!-- Если необходимо ознакомиться со ошибками, для деббагинга -->
       <!-- <pre>{{ v$.$silentErrors }}</pre> -->
-      <template v-if="v$.$anyDirty">
-        <pre>{{
-          v$.$silentErrors.length
-            ? "У каждого поля должно быть указание\nв чем именно оно не прошло валидацию\nно это просто тестовое, решил не делать"
-            : null
-        }}</pre>
-      </template>
+      <pre v-show="v$.$anyDirty">{{
+        v$.$silentErrors.length
+          ? "У каждого поля должно быть указание\nв чем именно оно не прошло валидацию\nно это просто тестовое, решил не делать"
+          : null
+      }}</pre>
     </div>
   </div>
 </template>
@@ -88,7 +93,7 @@ import useVuelidate from "@vuelidate/core";
 import { required, numeric } from "@vuelidate/validators";
 
 import { LENGTH_VALID_DOUBLE, YEAR_VALIDATOR } from "../use/validators.js";
-import { dateNormalize } from "../use/helpers.js";
+import { dateNormalize, getByINN } from "../use/helpers.js";
 
 // Изначальная модель для формы
 const INITIAL_MODEL = {
@@ -129,49 +134,29 @@ export default {
   setup(_, { emit }) {
     // REACTIVE & REFS
     const companyName = ref(null);
-    let formModel = reactive(INITIAL_MODEL);
-
-    // eslint-disable-next-line no-unused-vars
-    const loadDataBy = (INN) => {
-      let url =
-        "https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/party";
-      let token = "5a5e1d8d7ab18d3b42989fb686d9c977d1c9be2c";
-      let query = INN;
-
-      let options = {
-        method: "POST",
-        mode: "cors",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Authorization: "Token " + token,
-        },
-        body: JSON.stringify({ query: query }),
-      };
-
-      fetch(url, options)
-        .then((response) => response.json())
-        .then(({ suggestions }) => {
-          if (v$.value.INN.$invalid) return;
-          const company = suggestions[0];
-
-          Object.assign(formModel, {
-            name: company.value,
-            INN: "0278962265",
-            OGRN: company.data.ogrn,
-            address: company.data.address.value,
-            date: dateNormalize(company.data.state.registration_date),
-          });
-        })
-        .catch((error) => console.log("error", error));
-    };
+    let formModel = reactive(Object.assign({}, INITIAL_MODEL));
 
     const v$ = useVuelidate(RULES, formModel);
 
     // EMITS
 
-    const createCompany = () => {
-      if (v$.value.$invalid) return;
+    const createCompany = (data) => {
+      // Заполнение формы
+      if (data && data.id) {
+        Object.assign(formModel, {
+          ...data,
+          date: dateNormalize(data.date),
+        });
+        return;
+      } else if (v$.value.$invalid) {
+        return;
+      }
+
+      // Создание уникального ID
+      Object.assign(formModel, {
+        id: formModel.INN + formModel.date.toString(),
+      });
+
       emit("addCompany", formModel);
       emit("close");
       Object.assign(formModel, INITIAL_MODEL);
@@ -179,6 +164,7 @@ export default {
 
     const closeForm = () => {
       emit("close");
+      Object.assign(formModel, INITIAL_MODEL);
     };
 
     return {
@@ -187,7 +173,7 @@ export default {
       createCompany,
       closeForm,
       dateNormalize,
-      loadDataBy,
+      getByINN,
       v$,
     };
   },
